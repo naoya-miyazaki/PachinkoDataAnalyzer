@@ -19,7 +19,7 @@
 
         <!-- 機種名入力 -->
         <label for="modelNames">機種名 (複数可、カンマ区切り):</label>
-        <textarea name="model_names" id="model_names" rows="5" cols="50" 
+        <textarea name="model_name" id="model_name" rows="5" cols="50" 
                   placeholder="例: 機種A, 機種B, 機種C" required></textarea>
         <br><br>
 
