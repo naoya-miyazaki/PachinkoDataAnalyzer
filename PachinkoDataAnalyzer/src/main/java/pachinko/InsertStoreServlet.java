@@ -24,109 +24,94 @@ public class InsertStoreServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         String storeName = request.getParameter("store_name");
         String modelNames = request.getParameter("model_names");
-        String message;
-
-        // 店舗名のバリデーション
-        if (storeName == null || storeName.trim().isEmpty()) {
-            message = "エラー: 店舗名を入力してください。";
-            forwardWithMessage(request, response, message);
+        
+        // 店舗名が空でないことを確認
+        if (storeName == null || storeName.isEmpty()) {
+            response.getWriter().write("店舗名が入力されていません。");
+            return;
+        }
+        
+        // 入力された機種名が空でないことを確認
+        if (modelNames == null || modelNames.isEmpty()) {
+            response.getWriter().write("機種名が入力されていません。");
             return;
         }
 
-        // 機種名のバリデーション
-        if (modelNames == null || modelNames.trim().isEmpty()) {
-            message = "エラー: 機種名を入力してください。";
-            forwardWithMessage(request, response, message);
-            return;
-        }
+        // 店舗名が既に存在するか確認するクエリ
+        String checkStoreQuery = "SELECT COUNT(*) FROM stores WHERE store_name = ?";
+        
+        try (Connection con = getConnection(); 
+             PreparedStatement pst = con.prepareStatement(checkStoreQuery)) {
+            pst.setString(1, storeName);
+            ResultSet rs = pst.executeQuery();
 
-        try (Connection con = getDatabaseConnection()) {
-            // 店舗登録 (店舗名を stores テーブルに登録)
-            String insertStoreSQL = "INSERT INTO stores (store_name) VALUES (?)";
-            try (PreparedStatement pstmtStore = con.prepareStatement(insertStoreSQL)) {
-                pstmtStore.setString(1, storeName.trim());
-                pstmtStore.executeUpdate();
-            }
-
-            // 店舗IDの取得
-            String getStoreIdSQL = "SELECT id FROM stores WHERE store_name = ?";
-            int storeId = -1;
-            try (PreparedStatement pstmtGetStoreId = con.prepareStatement(getStoreIdSQL)) {
-                pstmtGetStoreId.setString(1, storeName.trim());
-                try (ResultSet rs = pstmtGetStoreId.executeQuery()) {
-                    if (rs.next()) {
-                        storeId = rs.getInt("id");
-                    }
-                }
-            }
-
-            if (storeId == -1) {
-                message = "エラー: 店舗IDの取得に失敗しました。";
-                forwardWithMessage(request, response, message);
+            if (rs.next() && rs.getInt(1) > 0) {
+                // 既に店舗が存在する場合
+                response.getWriter().write("エラー: 店舗名 '" + storeName + "' は既に登録されています。");
                 return;
             }
 
-            // 機種名の処理 (複数機種名をカンマ区切りで処理)
-            String[] modelNamesArray = modelNames.split(",");
-            for (String modelName : modelNamesArray) {
-                modelName = modelName.trim();
+            // 新しい店舗を追加するクエリ
+            String insertStoreQuery = "INSERT INTO stores (store_name) VALUES (?)";
+            try (PreparedStatement pstInsert = con.prepareStatement(insertStoreQuery)) {
+                pstInsert.setString(1, storeName);
+                pstInsert.executeUpdate();
+            }
 
-                // 機種が model_list テーブルに登録されていない場合は登録
-                String insertModelSQL = "INSERT INTO model_list (model_name) " +
-                                        "SELECT ? WHERE NOT EXISTS (SELECT 1 FROM model_list WHERE model_name = ?)";
-                try (PreparedStatement pstmtInsertModel = con.prepareStatement(insertModelSQL)) {
-                    pstmtInsertModel.setString(1, modelName);
-                    pstmtInsertModel.setString(2, modelName);
-                    pstmtInsertModel.executeUpdate();
-                }
-
-                // 正しい model_id を取得する
-                String getModelIdSQL = "SELECT id FROM model_list WHERE model_name = ?";
-                int modelId = -1;
-                try (PreparedStatement pstmtGetModelId = con.prepareStatement(getModelIdSQL)) {
-                    pstmtGetModelId.setString(1, modelName);
-                    try (ResultSet rs = pstmtGetModelId.executeQuery()) {
-                        if (rs.next()) {
-                            modelId = rs.getInt("id");
-                        }
-                    }
-                }
-
-                if (modelId == -1) {
-                    message = "エラー: 機種IDの取得に失敗しました。";
-                    forwardWithMessage(request, response, message);
-                    return;
-                }
-
-                // store_model テーブルに店舗IDと機種IDを関連付けて登録
-                String insertStoreModelSQL = "INSERT INTO store_model (store_id, model_id) " +
-                                             "VALUES (?, ?)";
-                try (PreparedStatement pstmtInsertStoreModel = con.prepareStatement(insertStoreModelSQL)) {
-                    pstmtInsertStoreModel.setInt(1, storeId);
-                    pstmtInsertStoreModel.setInt(2, modelId);
-                    pstmtInsertStoreModel.executeUpdate();
+            // 機種名を登録する
+            String[] modelNameList = modelNames.split(",");
+            String insertModelQuery = "INSERT INTO model_list (model_name) VALUES (?) ON CONFLICT (model_name) DO NOTHING";
+            try (PreparedStatement pstInsertModel = con.prepareStatement(insertModelQuery)) {
+                for (String modelName : modelNameList) {
+                    pstInsertModel.setString(1, modelName.trim());
+                    pstInsertModel.executeUpdate();
                 }
             }
 
-            message = "店舗「" + storeName + "」と機種名を登録しました。";
+            // 店舗と機種を関連付ける
+            String getStoreIdQuery = "SELECT id FROM stores WHERE store_name = ?";
+            try (PreparedStatement pstGetStoreId = con.prepareStatement(getStoreIdQuery)) {
+                pstGetStoreId.setString(1, storeName);
+                ResultSet storeRs = pstGetStoreId.executeQuery();
+                if (storeRs.next()) {
+                    int storeId = storeRs.getInt("id");
+
+                    for (String modelName : modelNameList) {
+                        String getModelIdQuery = "SELECT id FROM model_list WHERE model_name = ?";
+                        try (PreparedStatement pstGetModelId = con.prepareStatement(getModelIdQuery)) {
+                            pstGetModelId.setString(1, modelName.trim());
+                            ResultSet modelRs = pstGetModelId.executeQuery();
+                            if (modelRs.next()) {
+                                int modelId = modelRs.getInt("id");
+
+                                String insertStoreModelQuery = "INSERT INTO store_model (store_id, model_id) VALUES (?, ?)";
+                                try (PreparedStatement pstInsertStoreModel = con.prepareStatement(insertStoreModelQuery)) {
+                                    pstInsertStoreModel.setInt(1, storeId);
+                                    pstInsertStoreModel.setInt(2, modelId);
+                                    pstInsertStoreModel.executeUpdate();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 成功メッセージを表示
+            response.getWriter().write("店舗 '" + storeName + "' と機種名を登録しました。");
+
         } catch (SQLException e) {
-            message = "エラー: データベースエラーが発生しました。 (" + e.getMessage() + ")";
-        } catch (NamingException e) {
-            message = "エラー: データベース接続エラーが発生しました。 (" + e.getMessage() + ")";
+            e.printStackTrace();
+            response.getWriter().write("データベースエラーが発生しました: " + e.getMessage());
         }
-
-        // メッセージをリクエストスコープに設定してフォワード
-        forwardWithMessage(request, response, message);
     }
 
-    private Connection getDatabaseConnection() throws NamingException, SQLException {
-        Context initialContext = new InitialContext();
-        DataSource ds = (DataSource) initialContext.lookup("java:comp/env/jdbc/pachinkoDB");
-        return ds.getConnection();
-    }
-
-    private void forwardWithMessage(HttpServletRequest request, HttpServletResponse response, String message) throws ServletException, IOException {
-        request.setAttribute("message", message);
-        request.getRequestDispatcher("storeResult.jsp").forward(request, response);
+    private Connection getConnection() throws SQLException {
+        try {
+            Context context = new InitialContext();
+            DataSource ds = (DataSource) context.lookup("java:comp/env/jdbc/PostgreSQL");
+            return ds.getConnection();
+        } catch (NamingException e) {
+            throw new SQLException("データベース接続エラー", e);
+        }
     }
 }

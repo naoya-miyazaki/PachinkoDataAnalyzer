@@ -29,6 +29,6 @@
 
     <!-- ホーム画面に戻るボタン -->
     <br><br>
-    <button onclick="window.location.href='index.jsp';">ホーム画面に戻る</button>
+    <a href="index.jsp"><button type="button">ホーム画面に戻る</button></a>
 </body>
 </html>
