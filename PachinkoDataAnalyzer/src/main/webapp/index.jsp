@@ -22,7 +22,7 @@
     </form>
 
     <!-- 格納済みデータを閲覧 -->
-    <form action="viewData.jsp" method="get">
+    <form action="selectStore.jsp" method="get">
         <button type="submit">格納済みデータを閲覧</button>
     </form>
 </body>
