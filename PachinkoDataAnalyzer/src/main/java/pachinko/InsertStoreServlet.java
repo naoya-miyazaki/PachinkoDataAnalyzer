@@ -3,6 +3,8 @@ package pachinko;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -18,73 +20,95 @@ import pachinko.util.DBUtil;
 @WebServlet("/insertStore")
 public class InsertStoreServlet extends HttpServlet {
     private static final long serialVersionUID = 1L;
+    
+    private StoreDAO storeDAO;
+    private ModelDAO modelDAO;
+
+    @Override
+    public void init() throws ServletException {
+        super.init();
+        storeDAO = new StoreDAO();
+        modelDAO = new ModelDAO();
+    }
 
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         String storeName = request.getParameter("store_name");
-        String modelName = request.getParameter("model_name");
+        String modelName1 = request.getParameter("model_name1");
+        String modelName2 = request.getParameter("model_name2");
+        String modelName3 = request.getParameter("model_name3");
 
-        // 入力が空の場合はエラーメッセージを表示
-        if (storeName == null || storeName.isEmpty() || modelName == null || modelName.isEmpty()) {
-            request.setAttribute("errorMessage", "店舗名または機種名が未入力です。");
+        // 空白を削除
+        if (storeName != null) storeName = storeName.trim();
+        if (modelName1 != null) modelName1 = modelName1.trim();
+        if (modelName2 != null) modelName2 = modelName2.trim();
+        if (modelName3 != null) modelName3 = modelName3.trim();
+
+        // 入力チェック
+        if (storeName == null || storeName.isEmpty()) {
+            request.setAttribute("errorMessage", "店舗名が未入力です。");
             request.getRequestDispatcher("/insertStoreResult.jsp").forward(request, response);
             return;
         }
 
-        // データベース接続を開く
-        try (Connection con = DBUtil.getConnection()) {
-            StoreDAO storeDAO = new StoreDAO();
-            ModelDAO modelDAO = new ModelDAO();
+        // 有効な機種名だけをリストに追加
+        List<String> validModelNames = new ArrayList<>();
+        if (modelName1 != null && !modelName1.isEmpty()) validModelNames.add(modelName1);
+        if (modelName2 != null && !modelName2.isEmpty()) validModelNames.add(modelName2);
+        if (modelName3 != null && !modelName3.isEmpty()) validModelNames.add(modelName3);
 
-            // 店舗IDを取得
+        if (validModelNames.isEmpty()) {
+            request.setAttribute("errorMessage", "少なくとも1つの機種名を入力してください。");
+            request.getRequestDispatcher("/insertStoreResult.jsp").forward(request, response);
+            return;
+        }
+
+        try (Connection con = DBUtil.getConnection()) {
+            // 店舗IDを取得または登録
             int storeId = storeDAO.getStoreIdByName(con, storeName);
-            boolean isNewStore = false;
-            if (storeId == -1) { // 店舗が存在しない場合は新規登録
+            if (storeId == -1) {
                 storeDAO.insertStore(con, storeName);
                 storeId = storeDAO.getStoreIdByName(con, storeName);
-                isNewStore = true; // 新規店舗フラグ
             }
 
-            // 機種IDを取得
-            int modelId = modelDAO.getModelIdByName(con, modelName);
-            boolean isNewModel = false;
-            if (modelId == -1) { // 機種が存在しない場合は新規登録
-                modelDAO.insertModel(con, modelName);
-                modelId = modelDAO.getModelIdByName(con, modelName);
-                isNewModel = true; // 新規機種フラグ
-            }
-
-            // 既存の店舗と機種が両方登録されている場合
+            // 機種ごとの登録処理
             StoreModelDAO storeModelDAO = new StoreModelDAO();
-            boolean isDuplicate = storeModelDAO.isStoreModelDuplicate(con, storeId, modelId);
-            if (isDuplicate) {
-                request.setAttribute("errorMessage", "指定された店舗と機種は既に登録されています。");
-                request.getRequestDispatcher("/insertStoreResult.jsp").forward(request, response);
-                return;
+            List<String> duplicateModels = new ArrayList<>();
+            List<String> newModels = new ArrayList<>();
+
+            for (String modelName : validModelNames) {
+                int modelId = modelDAO.getModelIdByName(con, modelName);
+                if (modelId == -1) {
+                    modelDAO.insertModel(con, modelName);
+                    modelId = modelDAO.getModelIdByName(con, modelName);
+                }
+
+                if (storeModelDAO.isStoreModelDuplicate(con, storeId, modelId)) {
+                    duplicateModels.add(modelName);
+                } else {
+                    storeModelDAO.insertStoreModel(con, storeId, modelId);
+                    newModels.add(modelName);
+                }
             }
 
-            // 店舗と機種の紐付けを登録
-            storeModelDAO.insertStoreModel(con, storeId, modelId);
-
-            // メッセージの設定
-            if (isNewStore && isNewModel) {
-                request.setAttribute("successMessage", "新規店舗と新規機種が登録されました。");
-            } else if (!isNewStore && isNewModel) {
-                request.setAttribute("successMessage", "既存店舗に新規機種が追加されました。");
-            } else if (isNewStore && !isNewModel) {
-                request.setAttribute("successMessage", "新規店舗に既存機種が追加されました。");
+            // 結果メッセージ設定
+            StringBuilder message = new StringBuilder();
+            if (!newModels.isEmpty()) {
+                message.append("以下の機種が登録されました: ").append(String.join(", ", newModels)).append(".<br>");
+            }
+            if (!duplicateModels.isEmpty()) {
+                message.append("既に登録されている機種:<br>").append(String.join(", ", duplicateModels)).append(".");
             }
 
-            // 結果表示ページにフォワード
+            if (message.length() > 0) {
+                request.setAttribute("successMessage", message.toString());
+            } else {
+                request.setAttribute("errorMessage", "すべての機種が既に登録済みです。");
+            }
+
             request.getRequestDispatcher("/insertStoreResult.jsp").forward(request, response);
         } catch (SQLException e) {
-            // エラー詳細をログに出力
             e.printStackTrace();
             request.setAttribute("errorMessage", "データベースエラー: " + e.getMessage());
-            request.getRequestDispatcher("/insertStoreResult.jsp").forward(request, response);
-        } catch (Exception e) {
-            // その他の例外もキャッチしてエラーメッセージを表示
-            e.printStackTrace();
-            request.setAttribute("errorMessage", "エラーが発生しました: " + e.getMessage());
             request.getRequestDispatcher("/insertStoreResult.jsp").forward(request, response);
         }
     }

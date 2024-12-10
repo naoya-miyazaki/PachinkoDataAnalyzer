@@ -1,59 +1,109 @@
 package pachinko.dao;
 
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-import javax.naming.Context;
-import javax.naming.InitialContext;
-import javax.naming.NamingException;
-import javax.sql.DataSource;
+import pachinko.util.DBUtil;
 
 public class StoreDataDAO {
+	
+	 public boolean insertStoreData(Connection con, int storeId, int modelId, Date dataDate,
+             int machineNumber, int totalGames, int diffMedals, 
+             int bb, int rb, double combinedProb, double bbProb, double rbProb) {
+		 String insertSQL = "INSERT INTO store_data (store_id, model_id, data_date, machine_number, " +
+				 "total_games, diff_medals, bb, rb, combined_prob, bb_prob, rb_prob) " +
+				 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-    // 重複チェック（店舗名、日付、機種名）
-    public boolean checkDuplicate(String storeName, String dataDate, String modelName) throws SQLException, NamingException {
-        try (Connection con = getConnection()) {
-            String sql = "SELECT 1 FROM store_data sd "
-                       + "JOIN stores s ON s.id = sd.store_id "
-                       + "JOIN model_list m ON m.id = sd.model_id "
-                       + "WHERE s.store_name = ? AND m.model_name = ? AND sd.data_date = CAST(? AS DATE)";
-            try (PreparedStatement pstmt = con.prepareStatement(sql)) {
-                pstmt.setString(1, storeName);
-                pstmt.setString(2, modelName);
-                pstmt.setString(3, dataDate);
-                ResultSet rs = pstmt.executeQuery();
-                return rs.next();  // 重複があれば結果が返ってくるのでtrueを返す
-            }
+			try (PreparedStatement pst = con.prepareStatement(insertSQL)) {
+			pst.setInt(1, storeId);
+			pst.setInt(2, modelId);
+			pst.setDate(3, dataDate);
+			pst.setInt(4, machineNumber);
+			pst.setInt(5, totalGames);
+			pst.setInt(6, diffMedals);
+			pst.setInt(7, bb);
+			pst.setInt(8, rb);
+			pst.setDouble(9, combinedProb);
+			pst.setDouble(10, bbProb);
+			pst.setDouble(11, rbProb);
+
+			int affectedRows = pst.executeUpdate();
+			return affectedRows > 0;  // 成功したらtrueを返す
+	} catch (SQLException e) {
+			e.printStackTrace();
+			return false;  // エラーが発生した場合はfalseを返す
+	}
+}
+
+	// StoreDataDAO.java
+	public boolean checkDuplicateData(int storeId, int modelId, int machineNumber, String dataDate) {
+	    String query = "SELECT COUNT(*) FROM store_data WHERE store_id = ? AND model_id = ? AND machine_number = ? AND data_date = ?";
+	    
+	    try (Connection con = DBUtil.getConnection(); 
+	         PreparedStatement ps = con.prepareStatement(query)) {
+	        
+	        ps.setInt(1, storeId);
+	        ps.setInt(2, modelId);
+	        ps.setInt(3, machineNumber);
+	        ps.setString(4, dataDate);
+
+	        ResultSet rs = ps.executeQuery();
+	        if (rs.next() && rs.getInt(1) > 0) {
+	            return true; // 重複データが存在
+	        }
+	    } catch (SQLException e) {
+	        e.printStackTrace();
+	    }
+	    return false; // 重複データは存在しない
+	}
+
+
+    // データをstore_dataテーブルに挿入するメソッド
+ // StoreDataDAO.java
+    public void insertData(int storeId, int modelId, int machineNumber, String dataDate,
+                           String totalGames, String diffMedals, String bbCount, String rbCount, 
+                           String combinedProb, String bbProb, String rbProb) {
+        String query = "INSERT INTO store_data (store_id, model_id, machine_number, data_date, " +
+                       "total_games, diff_medals, bb, rb, combined_prob, bb_prob, rb_prob) " +
+                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+        try (Connection con = DBUtil.getConnection(); 
+             PreparedStatement ps = con.prepareStatement(query)) {
+
+            ps.setInt(1, storeId);
+            ps.setInt(2, modelId);
+            ps.setInt(3, machineNumber);
+            ps.setString(4, dataDate);
+            ps.setString(5, totalGames);
+            ps.setString(6, diffMedals);
+            ps.setString(7, bbCount);
+            ps.setString(8, rbCount);
+            ps.setString(9, combinedProb);
+            ps.setString(10, bbProb);
+            ps.setString(11, rbProb);
+
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
-
-    // 台データをstore_dataテーブルに挿入
-    public void insertMachineData(int storeId, int modelId, int machineNumber, int totalGames, int diffMedals, int bb, int rb, String combinedProb, String bbProb, String rbProb, String dataDate) throws SQLException, NamingException {
-        try (Connection con = getConnection()) {
-            String sql = "INSERT INTO store_data (store_id, model_id, data_date, machine_number, total_games, diff_medals, bb, rb, combined_prob, bb_prob, rb_prob) "
-                       + "VALUES (?, ?, CAST(? AS DATE), ?, ?, ?, ?, ?, ?, ?, ?)";
-            try (PreparedStatement pstmt = con.prepareStatement(sql)) {
-                pstmt.setInt(1, storeId);
-                pstmt.setInt(2, modelId);
-                pstmt.setString(3, dataDate);
-                pstmt.setInt(4, machineNumber);
-                pstmt.setInt(5, totalGames);
-                pstmt.setInt(6, diffMedals);
-                pstmt.setInt(7, bb);
-                pstmt.setInt(8, rb);
-                pstmt.setString(9, combinedProb);
-                pstmt.setString(10, bbProb);
-                pstmt.setString(11, rbProb);
-                pstmt.executeUpdate();
+    public boolean isDataDuplicate(Connection con, int storeId, int modelId, java.sql.Date dataDate, int machineNumber) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM store_data WHERE store_id = ? AND model_id = ? AND data_date = ? AND machine_number = ?";
+        try (PreparedStatement stmt = con.prepareStatement(sql)) {
+            stmt.setInt(1, storeId);
+            stmt.setInt(2, modelId);
+            stmt.setDate(3, dataDate);
+            stmt.setInt(4, machineNumber);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1) > 0; // 重複している場合はtrue
+                }
             }
         }
+        return false; // 重複していない場合はfalse
     }
 
-    private Connection getConnection() throws SQLException, NamingException {
-        Context context = new InitialContext();
-        DataSource ds = (DataSource) context.lookup("java:comp/env/jdbc/pachinkoDB");
-        return ds.getConnection();
-    }
 }

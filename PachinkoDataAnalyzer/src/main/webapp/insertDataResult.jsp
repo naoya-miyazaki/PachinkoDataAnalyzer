@@ -11,26 +11,10 @@
 <body>
     <h1>データ登録結果</h1>
     
-    <%
-        String result = request.getParameter("result");
-        if ("success".equals(result)) {
-    %>
-        <p>データの登録が正常に完了しました！</p>
-        <a href="insertData.jsp">新しいデータを登録</a>
-        <a href="index.jsp">メイン画面に戻る</a>
-    <% 
-        } else if ("duplicate".equals(result)) {
-    %>
-        <p>この店舗と日付のデータはすでに登録されています。重複を避けて再度登録してください。</p>
-        <a href="insertData.jsp">戻る</a>
-    <% 
-        } else {
-    %>
-        <p>データの登録に失敗しました。再度お試しください。</p>
-        <a href="insertData.jsp">戻る</a>
-    <% 
-        }
-    %>
+    <!-- メッセージを表示 -->
+    <p>${message}</p> <!-- ${message} を使用して属性を表示 -->
     
+    <a href="InsertDataServlet">新しいデータを登録</a>
+    <a href="index.jsp">メイン画面に戻る</a>
 </body>
 </html>

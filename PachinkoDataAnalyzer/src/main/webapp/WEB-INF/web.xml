@@ -10,7 +10,16 @@
 <!--    <url-pattern>/InsertPachinkoDataServlet</url-pattern>-->
 <!--</servlet-mapping>-->
   
-  
+  <servlet>
+    <servlet-name>InsertDataServlet</servlet-name>
+    <servlet-class>pachinko.InsertDataServlet</servlet-class>
+</servlet>
+<servlet-mapping>
+    <servlet-name>InsertDataServlet</servlet-name>
+    <url-pattern>/InsertDataServlet</url-pattern>
+</servlet-mapping>
+
+
   <resource-ref>
   	<description>PostgreSQL connection resource</description>
   	<res-ref-name>jdbc/Pachinko</res-ref-name>

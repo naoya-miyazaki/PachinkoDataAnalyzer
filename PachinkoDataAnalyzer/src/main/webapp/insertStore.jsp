@@ -18,9 +18,14 @@
         <br><br>
 
         <!-- 機種名入力 -->
-        <label for="modelNames">機種名 (複数可、カンマ区切り):</label>
-        <textarea name="model_name" id="model_name" rows="5" cols="50" 
-                  placeholder="例: 機種A, 機種B, 機種C" required></textarea>
+        <label for="model_name1">機種名1:</label>
+        <input type="text" id="model_name1" name="model_name1">
+        <br>
+        <label for="model_name2">機種名2:</label>
+        <input type="text" id="model_name2" name="model_name2">
+        <br>
+        <label for="model_name3">機種名3:</label>
+        <input type="text" id="model_name3" name="model_name3">
         <br><br>
 
         <!-- 登録ボタン -->
