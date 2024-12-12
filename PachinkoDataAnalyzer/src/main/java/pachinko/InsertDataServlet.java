@@ -39,9 +39,6 @@ public class InsertDataServlet extends HttpServlet {
             throws ServletException, IOException {
         try (Connection conn = DBUtil.getConnection()) {
             String storeName = request.getParameter("store_name");
-            
-            
-
             if (storeName == null || storeName.trim().isEmpty()) {
                 request.setAttribute("message", "店舗名が選択されていません。");
                 request.getRequestDispatcher("insertDataResult.jsp").forward(request, response);
@@ -56,7 +53,7 @@ public class InsertDataServlet extends HttpServlet {
                 return;
             }
 
-            List<String> modelNames = modelDAO.getModelsByStoreId(storeId);
+            List<String> modelNames = modelDAO.getModelsByStoreName(storeName);  // 店舗名を渡す
             request.setAttribute("storeName", storeName);  // storeName をセット
             request.setAttribute("modelNames", modelNames);
 
@@ -66,9 +63,6 @@ public class InsertDataServlet extends HttpServlet {
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "データ取得中にエラーが発生しました。");
         }
     }
-
-
-
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -80,15 +74,12 @@ public class InsertDataServlet extends HttpServlet {
         String dataDate = request.getParameter("data_date").trim();
         String pachinkoData = request.getParameter("pachinko_data").trim();
 
-        
-
         java.sql.Date sqlDate = convertToSqlDate(dataDate);
         if (sqlDate == null) {
             request.setAttribute("message", "日付の形式が正しくありません。");
             request.getRequestDispatcher("insertDataResult.jsp").forward(request, response);
             return;
         }
-    
 
         if (storeName == null || storeName.trim().isEmpty() || modelName == null || modelName.trim().isEmpty()) {
             request.setAttribute("message", "店舗名または機種名が正しくありません。");

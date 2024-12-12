@@ -6,22 +6,35 @@
     <title>データ閲覧</title>
 </head>
 <body>
-    <h1>データ閲覧</h1>
+    <h1>${storeName} のデータを閲覧するために、機種と日付を選択してください</h1>
+
+    <!-- 日付と機種を選択するフォーム -->
     <form action="viewDataResult" method="get">
+        <label for="model">機種を選択:</label>
+        <select name="model_name">
+    <option value="all">すべての機種</option> <!-- すべての機種を選択 -->
+    <c:forEach var="model" items="${modelNames}">
+        <option value="${model}">${model}</option>
+    </c:forEach>
+</select>
+        
+        <label for="date">日付を選択:</label>
+        <input type="date" id="date" name="data_date" required>
+
         <input type="hidden" name="store_name" value="${storeName}">
-        
-        <label for="data_date">日付を選択:</label>
-        <input type="date" name="data_date" id="data_date" required><br>
-        
-        <label for="model_name">機種を選択:</label>
-        <select name="model_name" id="model_name">
-            <option value="all">すべての機種</option>
-            <c:forEach var="model" items="${modelNames}">
-                <option value="${model}">${model}</option>
-            </c:forEach>
-        </select><br><br>
-        
-        <input type="submit" value="データを表示">
+
+        <button type="submit">データ表示</button>
     </form>
+
+    <br><br>
+    <!-- 他の機種を選択するボタン -->
+    <a href="viewData?store_name=${storeName}">
+        <button type="button">他の機種を選択する</button>
+    </a>
+    
+    <!-- 他の機種を選択するボタン -->
+    <a href="storeAction?store_name=${storeName}">
+        <button type="button">店舗操作へ戻る</button>
+    </a>
 </body>
 </html>

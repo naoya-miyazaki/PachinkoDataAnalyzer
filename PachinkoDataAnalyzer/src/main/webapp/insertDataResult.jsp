@@ -14,7 +14,9 @@
     <!-- メッセージを表示 -->
     <p>${message}</p> <!-- ${message} を使用して属性を表示 -->
     
-    
+    <a href="insertData?store_name=${storeName}">
+    <button type="button">続けてデータを入力する</button>
+</a>
     <a href="index.jsp">メイン画面に戻る</a>
 </body>
 </html>

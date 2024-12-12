@@ -16,7 +16,7 @@
     <input type="hidden" name="store_name" value="${storeName}">
 </form>
     
-   <form action="viewData.jsp" method="get">
+   <form action="viewData" method="get">
     <input type="hidden" name="store_name" value="${storeName}">
     <input type="submit" value="データ閲覧">
 </form>
