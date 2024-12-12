@@ -35,27 +35,39 @@ public class InsertDataServlet extends HttpServlet {
     }
 
     @Override
-    protected void doGet(HttpServletRequest request, HttpServletResponse response) 
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        try (Connection con = DBUtil.getConnection()) {
-            // 店舗名のリストを取得
-            List<String> storeNames = storeDAO.getStoreNames(con);
+        try (Connection conn = DBUtil.getConnection()) {
+            String storeName = request.getParameter("store_name");
             
-            // 機種名のリストを取得
-            List<String> modelNames = modelDAO.getModelNames(con);
+            
 
-            // 店舗名と機種名のリストをリクエストスコープに設定
-            request.setAttribute("storeNames", storeNames);
+            if (storeName == null || storeName.trim().isEmpty()) {
+                request.setAttribute("message", "店舗名が選択されていません。");
+                request.getRequestDispatcher("insertDataResult.jsp").forward(request, response);
+                return;
+            }
+
+            // storeId を取得してから店舗に関連するモデルを取得
+            int storeId = storeDAO.getStoreIdByName(conn, storeName);
+            if (storeId == -1) {
+                request.setAttribute("message", "指定された店舗が存在しません。店舗名: " + storeName);
+                request.getRequestDispatcher("insertDataResult.jsp").forward(request, response);
+                return;
+            }
+
+            List<String> modelNames = modelDAO.getModelsByStoreId(storeId);
+            request.setAttribute("storeName", storeName);  // storeName をセット
             request.setAttribute("modelNames", modelNames);
 
-            // insertData.jspにフォワード
-            request.getRequestDispatcher("/insertData.jsp").forward(request, response);
+            request.getRequestDispatcher("insertData.jsp").forward(request, response);
         } catch (SQLException e) {
             e.printStackTrace();
-            request.setAttribute("errorMessage", "データベースエラー: " + e.getMessage());
-            request.getRequestDispatcher("/error.jsp").forward(request, response);
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "データ取得中にエラーが発生しました。");
         }
     }
+
+
 
 
     @Override
@@ -63,36 +75,40 @@ public class InsertDataServlet extends HttpServlet {
             throws ServletException, IOException {
         request.setCharacterEncoding("UTF-8");
 
-        // フォームからのパラメータ取得
         String storeName = request.getParameter("store_name");
         String modelName = request.getParameter("model_name");
         String dataDate = request.getParameter("data_date").trim();
         String pachinkoData = request.getParameter("pachinko_data").trim();
 
-        // 文字列の日付をjava.sql.Dateに変換
+        
+
         java.sql.Date sqlDate = convertToSqlDate(dataDate);
         if (sqlDate == null) {
             request.setAttribute("message", "日付の形式が正しくありません。");
             request.getRequestDispatcher("insertDataResult.jsp").forward(request, response);
             return;
         }
+    
+
+        if (storeName == null || storeName.trim().isEmpty() || modelName == null || modelName.trim().isEmpty()) {
+            request.setAttribute("message", "店舗名または機種名が正しくありません。");
+            request.getRequestDispatcher("insertDataResult.jsp").forward(request, response);
+            return;
+        }
 
         try (Connection con = DBUtil.getConnection()) {
-            // 店舗IDと機種IDを取得
             int storeId = getIdByName(con, "stores", "store_name", storeName);
             int modelId = getIdByName(con, "model_list", "model_name", modelName);
 
             // 店舗IDと機種IDが無効な場合
             if (storeId == -1 || modelId == -1) {
-                request.setAttribute("message", "店舗または機種名が正しくありません。");
+                request.setAttribute("message", "指定された店舗または機種名がデータベースに存在しません。店舗名: " + storeName + ", 機種名: " + modelName);
                 request.getRequestDispatcher("insertDataResult.jsp").forward(request, response);
                 return;
             }
 
-            // 店舗と機種の関連チェック（重複防止）
             StoreModelDAO storeModelDAO = new StoreModelDAO();
             if (!storeModelDAO.isStoreModelDuplicate(con, storeId, modelId)) {
-                // 重複していない店舗と機種の組み合わせを登録
                 storeModelDAO.insertStoreModel(con, storeId, modelId);
             }
 
@@ -109,7 +125,6 @@ public class InsertDataServlet extends HttpServlet {
                     continue;
                 }
                 try {
-                    // 入力データのパース
                     int machineNumber = Integer.parseInt(cols[0].replace(",", ""));
                     int totalGames = Integer.parseInt(cols[1].replace(",", ""));
                     int diffMedals = Integer.parseInt(cols[2].replace(",", ""));
@@ -119,9 +134,7 @@ public class InsertDataServlet extends HttpServlet {
                     double bbProb = Double.parseDouble(cols[6].replace("1/", ""));
                     double rbProb = Double.parseDouble(cols[7].replace("1/", ""));
 
-                    // 台データが既に存在するか確認
                     if (!storeDataDAO.isDataDuplicate(con, storeId, modelId, sqlDate, machineNumber)) {
-                        // 重複していなければ新規登録
                         boolean success = storeDataDAO.insertStoreData(con, storeId, modelId, sqlDate,
                                 machineNumber, totalGames, diffMedals, bb, rb, combinedProb, bbProb, rbProb);
 
@@ -131,32 +144,25 @@ public class InsertDataServlet extends HttpServlet {
                         }
                     } else {
                         isSuccess = false;
-                        failedEntries.add(String.valueOf(machineNumber)); // 台番号のみを格納
+                        failedEntries.add("台番号: " + machineNumber + "（データが既に存在）");
                     }
                 } catch (Exception e) {
                     isSuccess = false;
-                    failedEntries.add("台番号: " + (cols.length > 0 ? cols[0] : "不明"));
+                    failedEntries.add("台番号: " + (cols.length > 0 ? cols[0] : "不明") + "（データ形式エラー）");
                     e.printStackTrace();
                 }
             }
 
-         // 結果メッセージの設定
             if (isSuccess) {
                 request.setAttribute("message", "すべてのデータを正常に登録しました。");
             } else {
                 if (!failedEntries.isEmpty()) {
-                    // 台番号リストをカンマ区切りに結合
                     String failedMachines = String.join(", ", failedEntries);
-                    // メッセージを構築
-                    request.setAttribute("message", "一部のデータ登録に失敗しました: 台番号: " + failedMachines + "（データが既に存在）");
+                    request.setAttribute("message", "一部のデータ登録に失敗しました: " + failedMachines);
                 } else {
                     request.setAttribute("message", "一部のデータ登録に失敗しましたが、失敗した台番号は特定できませんでした。");
                 }
             }
-
-            // 結果ページに遷移
-            request.getRequestDispatcher("insertDataResult.jsp").forward(request, response);
-
 
             request.getRequestDispatcher("insertDataResult.jsp").forward(request, response);
         } catch (SQLException e) {
@@ -170,20 +176,18 @@ public class InsertDataServlet extends HttpServlet {
         }
     }
 
-    // 日付文字列をjava.sql.Dateに変換するメソッド
     private java.sql.Date convertToSqlDate(String dateString) {
         java.sql.Date date = null;
         try {
             java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd");
-            java.util.Date utilDate = sdf.parse(dateString);  // StringからDateに変換
-            date = new java.sql.Date(utilDate.getTime());    // DateからSQL Dateに変換
+            java.util.Date utilDate = sdf.parse(dateString);
+            date = new java.sql.Date(utilDate.getTime());
         } catch (java.text.ParseException e) {
             e.printStackTrace();
         }
         return date;
     }
 
-    // 名前からIDを取得するメソッド
     private int getIdByName(Connection con, String tableName, String columnName, String name) throws SQLException {
         int id = -1;
         String sql = "SELECT id FROM " + tableName + " WHERE " + columnName + " = ?";
@@ -197,4 +201,3 @@ public class InsertDataServlet extends HttpServlet {
         return id;
     }
 }
-

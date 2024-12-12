@@ -26,23 +26,24 @@ public class StoreDAO {
 	}
 
  // 店舗名から店舗IDを取得するメソッド
-	public int getStoreIdByName(Connection con, String storeName) throws SQLException {
-        String query = "SELECT id FROM stores WHERE store_name = ?";
-        try (PreparedStatement pst = con.prepareStatement(query)) {
-            pst.setString(1, storeName);
-            try (ResultSet rs = pst.executeQuery()) {
+	public int getStoreIdByName(Connection conn, String storeName) throws SQLException {
+        String query = "SELECT id FROM stores WHERE TRIM(store_name) = TRIM(?)";
+        try (PreparedStatement stmt = conn.prepareStatement(query)) {
+            stmt.setString(1, storeName);
+            try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     return rs.getInt("id");
                 }
-                return -1; // 店舗が存在しない場合
             }
         }
+        return -1; // 店舗が見つからない場合
+    
     }
 
     public void insertStore(Connection con, String storeName) throws SQLException {
         String query = "INSERT INTO stores (store_name) VALUES (?)";
         try (PreparedStatement pst = con.prepareStatement(query)) {
-            pst.setString(1, storeName);
+        	pst.setString(1, storeName.trim()); // 空白削除
             pst.executeUpdate();
         }
     }

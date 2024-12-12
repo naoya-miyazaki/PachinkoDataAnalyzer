@@ -14,7 +14,7 @@
     <!-- メッセージを表示 -->
     <p>${message}</p> <!-- ${message} を使用して属性を表示 -->
     
-    <a href="InsertDataServlet">新しいデータを登録</a>
+    
     <a href="index.jsp">メイン画面に戻る</a>
 </body>
 </html>

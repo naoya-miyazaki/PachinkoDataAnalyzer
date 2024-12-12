@@ -7,16 +7,19 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
+import pachinko.util.DBUtil;
+
 public class ModelDAO {
 
-    // 機種名リストを取得するメソッド
-	public List<String> getModelNames(Connection con) throws SQLException {
+	public List<String> getModelsByStoreId(int storeId) throws SQLException {
         List<String> modelNames = new ArrayList<>();
-        String query = "SELECT model_name FROM model_list";  // model_listテーブルから機種名を取得
-
-        try (PreparedStatement pst = con.prepareStatement(query);
-             ResultSet rs = pst.executeQuery()) {
-
+        String query = "SELECT model_name FROM model_list "
+                     + "INNER JOIN store_model ON model_list.id = store_model.model_id "
+                     + "WHERE store_model.store_id = ?";
+        try (Connection conn = DBUtil.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+            stmt.setInt(1, storeId);
+            ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
                 modelNames.add(rs.getString("model_name"));
             }
